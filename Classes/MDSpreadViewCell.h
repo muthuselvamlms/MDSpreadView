@@ -134,5 +134,6 @@ typedef NS_ENUM(NSUInteger, MDSpreadViewCellSortIndicator) {
 // default gets [objectValue description] and sets it on the title. To not set the title, either call super, then change the title to something else, or return nil in -textLabel.
 // subclass -(void)setObjectValue:(id)anObject; calling supper to customize;
   
+- (void)removeAllConstraints;
 
 @end

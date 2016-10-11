@@ -612,6 +612,7 @@ static CGFloat MDPixel()
 
 @property (nonatomic, strong) NSMutableArray *_rowSections;
 @property (nonatomic, strong) NSMutableArray *_columnSections;
+@property (nonatomic, strong) NSMutableDictionary *_allCells;
 
 @property (nonatomic, strong) MDSpreadViewSelection *_currentSelection;
 
@@ -655,9 +656,10 @@ static CGFloat MDPixel()
 
 - (void)_performInit
 {
+    __allCells = [NSMutableDictionary dictionary];
     self.opaque = YES;
     self.backgroundColor = [UIColor whiteColor];
-    self.directionalLockEnabled = YES;
+    self.directionalLockEnabled = NO;
     
     _dequeuedCells = [[NSMutableArray alloc] init];
     
@@ -2911,6 +2913,7 @@ static CGFloat MDPixel()
 // Only call this if the frame is non-zero!!
 - (MDSpreadViewCell *)_preparedCellForRowAtIndexPath:(MDIndexPath *)rowIndexPath forColumnAtIndexPath:(MDIndexPath *)columnIndexPath withRowSectionCount:(NSUInteger)rowSectionCount columnSectionCount:(NSUInteger)columnSectionCount frame:(CGRect)frame
 {
+    NSLog(@"%@===%@",rowIndexPath,columnIndexPath);
     MDSpreadViewCell *cell = nil;
     UIView *anchor = nil;
     
@@ -3024,10 +3027,78 @@ static CGFloat MDPixel()
     
     if ([cell superview] != self) {
         [self insertSubview:cell belowSubview:anchor];
+        
+        //Add Constraints for this cell
+        
+        //First add height and width Constraints. because its applicable for all cells
+        /* Fixed width */
+        NSLayoutConstraint *widthConstraint = [NSLayoutConstraint constraintWithItem:cell
+                                                                           attribute:NSLayoutAttributeWidth
+                                                                           relatedBy:NSLayoutRelationEqual
+                                                                              toItem:nil
+                                                                           attribute:NSLayoutAttributeNotAnAttribute
+                                                                          multiplier:1.0
+                                                                            constant:frame.size.width];
+        /* Fixed Height */
+        NSLayoutConstraint *heightConstraint = [NSLayoutConstraint constraintWithItem:cell
+                                                                            attribute:NSLayoutAttributeHeight
+                                                                            relatedBy:NSLayoutRelationEqual
+                                                                               toItem:nil
+                                                                            attribute:NSLayoutAttributeNotAnAttribute
+                                                                           multiplier:1.0
+                                                                             constant:frame.size.height];
+        NSLayoutConstraint *leftButtonXConstraint;
+        if (rowIndexPath.row == -1) {
+            /* Leading space to superview */
+            leftButtonXConstraint = [NSLayoutConstraint
+                                                         constraintWithItem:cell attribute:NSLayoutAttributeLeft
+                                                         relatedBy:NSLayoutRelationEqual toItem:self attribute:
+                                                         NSLayoutAttributeLeft multiplier:1.0 constant:0];
+        }
+        else {
+            //Find Previous Cell in row
+            MDSpreadViewCell *prev_cell = [__allCells objectForKey:[NSString stringWithFormat:@"%ld%ld",(long)rowIndexPath.row-1,(long)columnIndexPath.column]];
+            if (prev_cell != nil) {
+                /* Leading space to superview */
+                leftButtonXConstraint = [NSLayoutConstraint
+                                         constraintWithItem:cell attribute:NSLayoutAttributeLeft
+                                         relatedBy:NSLayoutRelationEqual toItem:prev_cell attribute:
+                                         NSLayoutAttributeLeft multiplier:1.0 constant:0];
+            }
+        }
+        NSLayoutConstraint *leftButtonYConstraint;
+        if (columnIndexPath.column == -1) {
+            /* Top space to superview Y*/
+            leftButtonYConstraint = [NSLayoutConstraint
+                                                         constraintWithItem:cell attribute:NSLayoutAttributeTop
+                                                         relatedBy:NSLayoutRelationEqual toItem:self attribute:
+                                                         NSLayoutAttributeTop multiplier:1.0f constant:0];
+        }
+        else {
+            //Find Previous Cell in row
+            MDSpreadViewCell *prev_cell = [__allCells objectForKey:[NSString stringWithFormat:@"%ld%ld",(long)rowIndexPath.row,(long)columnIndexPath.column-1]];
+            if (prev_cell != nil) {
+                /* Top space to superview Y*/
+                leftButtonYConstraint = [NSLayoutConstraint
+                                         constraintWithItem:cell attribute:NSLayoutAttributeTop
+                                         relatedBy:NSLayoutRelationEqual toItem:prev_cell attribute:
+                                         NSLayoutAttributeTop multiplier:1.0f constant:0];
+            }
+        }
+        NSMutableArray *constrains = [@[widthConstraint,heightConstraint] mutableCopy];
+        if (leftButtonXConstraint) {
+            [constrains addObject:leftButtonXConstraint];
+        }
+        if (leftButtonYConstraint) {
+            [constrains addObject:leftButtonYConstraint];
+        }
+        [cell removeAllConstraints];
+        [self addConstraints:constrains];
     }
     
     return cell;
 }
+
 
 - (NSArray *)_generateColumnSizeCacheBetweenSection:(NSInteger)minColumnSection index:(NSInteger)minColumnIndex andSection:(NSInteger)maxColumnSection index:(NSInteger)maxColumnIndex withTotalColumnSections:(NSInteger)totalNumberOfColumnSections headersOnly:(BOOL)headersOnly
 {
@@ -3136,9 +3207,11 @@ static CGFloat MDPixel()
                 
                 if ((row >= 0 && row < numberOfRowsInSection) || headerContents) {
                     if (height > 0 && width > 0) {
-                        [column addObject:[self _preparedCellForRowAtIndexPath:rowIndexPath forColumnAtIndexPath:columnIndexPath
-                                                           withRowSectionCount:numberOfRowsInSection columnSectionCount:numberOfColumnsInSection
-                                                                         frame:frame]];
+                        MDSpreadViewCell *cell = [self _preparedCellForRowAtIndexPath:rowIndexPath forColumnAtIndexPath:columnIndexPath
+                                                                  withRowSectionCount:numberOfRowsInSection columnSectionCount:numberOfColumnsInSection
+                                                                                frame:frame];
+                        [column addObject:cell];
+                        [__allCells setObject:cell forKey:[NSString stringWithFormat:@"%ld%ld",(long)rowIndexPath.row,(long)columnIndexPath.column]];
                     } else {
                         [column addObject:[NSNull null]];
                     }
@@ -3199,9 +3272,11 @@ static CGFloat MDPixel()
                 
                 if ((column >= 0 && column < numberOfColumnsInSection) || headerContents) {
                     if (width > 0 && height > 0) {
-                        [row addObject:[self _preparedCellForRowAtIndexPath:rowIndexPath forColumnAtIndexPath:columnIndexPath
-                                                        withRowSectionCount:numberOfRowsInSection columnSectionCount:numberOfColumnsInSection
-                                                                      frame:frame]];
+                        MDSpreadViewCell *Cell = [self _preparedCellForRowAtIndexPath:rowIndexPath forColumnAtIndexPath:columnIndexPath
+                                                                  withRowSectionCount:numberOfRowsInSection columnSectionCount:numberOfColumnsInSection
+                                                                                frame:frame];
+                        [row addObject:Cell];
+                        [__allCells setObject:Cell forKey:[NSString stringWithFormat:@"%ld%ld",(long)rowIndexPath.row,(long)columnIndexPath.column]];
                     } else {
                         [row addObject:[NSNull null]];
                     }
